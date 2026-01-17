@@ -56,7 +56,7 @@ def parse(email_path):
             
             # 判断附件是否为PE文件并保存附件至目标文件夹
             if is_pe_file(filename, content):
-                print(f'找到PE文件附件: {filename},已保存到"D:\\StudyFile\\毕业设计\\attachment\\{name}"')
+                print(f'找到PE文件附件: {filename},已保存到临时文件夹中')
                 filepath = os.path.join(config.attachment_path, name, filename)
                 with open(filepath, 'wb') as f_out:
                     f_out.write(content)
