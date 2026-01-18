@@ -3,7 +3,6 @@ import os
 import sys
 import struct
 from email import policy
-import config
 from typing import Optional
 
 #根据文件内容判断是否为PE文件(优先采用内容判断)
@@ -37,11 +36,14 @@ def is_pe_file(filename:Optional[str],content:bytes) -> bool:
 
 #遍历邮件的每个部分，找到邮件的附件 
 def parse(email_path):
- 
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    temp_path = os.path.join(os.path.dirname(BASE_DIR), 'temp_attachment')
+
     # 预先设置保存附件的文件夹
     filename = os.path.basename(email_path)
     name, _ = os.path.splitext(filename)
-    savepath = os.path.join(config.attachment_path, name)
+    savepath = os.path.join(temp_path, name)
     if not os.path.exists(savepath):
         os.makedirs(savepath) 
 
@@ -56,14 +58,9 @@ def parse(email_path):
             
             # 判断附件是否为PE文件并保存附件至目标文件夹
             if is_pe_file(filename, content):
-                print(f'找到PE文件附件: {filename},已保存到临时文件夹中')
-                filepath = os.path.join(config.attachment_path, name, filename)
+                filepath = os.path.join(savepath, filename)
                 with open(filepath, 'wb') as f_out:
                     f_out.write(content)
-            else:
-                print(f"检测到非PE文件附件: {filename},跳过")
-
-    print("已经处理完所有附件。")
     return savepath
 
 if __name__ == "__main__":
