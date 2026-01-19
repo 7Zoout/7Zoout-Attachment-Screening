@@ -3,14 +3,14 @@ import hashlib
 import math
 import os
 
-""" def calculate_entropy(data):
+def calculate_entropy(data):
     if not data: return 0
     entropy = 0
-    for x in range(256):S
+    for x in range(256):
         p_x = float(data.count(x)) / len(data)
         if p_x > 0:
-            entropy += - p_x * math.log(p_x, 2)
-    return entropy """
+            entropy -= p_x * math.log(p_x, 2)
+    return entropy
 
 def get_file_features(file_path):
     #定义特征（默认0以免出错）
@@ -34,16 +34,20 @@ def get_file_features(file_path):
         "dangerous_api_count": 0, # 危险API计数
 
         #文本特征
-        "api_list": "" # 导入的api
+        "api_list": "", # 导入的api
+
+        #良性文件专属特征(优化模型)
+        "has_signature": 0, # 是否有数字签名
+        "has_gui_libs": 0, # 是否包含GUI库  
+        "num_exports": 0 # 导出函数数量
     }
 
     # 恶意软件常用的敏感API关键词
     DANGEROUS_APIS = [
         'VirtualAlloc', 'WriteProcessMemory', 'CreateRemoteThread', 
-        'InternetOpen', 'HttpSendRequest', 'Crypto', 'ControlService', 
-        'EnumProcesses', 'GetProcAddress', 'LoadLibrary'
+        'InternetOpen'
     ]
-
+    
     try:
         with open(file_path, "rb") as f:
             content = f.read()
@@ -51,11 +55,13 @@ def get_file_features(file_path):
 
         pe = pefile.PE(file_path)
         
+
         # 提取头部信息
         features["num_sections"] = len(pe.sections)
         features["size_of_image"] = pe.OPTIONAL_HEADER.SizeOfImage
         features["characteristics"] = pe.FILE_HEADER.Characteristics
         features["dll_characteristics"] = pe.OPTIONAL_HEADER.DllCharacteristics
+
 
         # 提取节区熵值与权限
         entropies = []
@@ -63,16 +69,16 @@ def get_file_features(file_path):
         for section in pe.sections:
             e = section.get_entropy()
             entropies.append(e)
-            
-            # 检查是否有 RWE (Read-Write-Execute) 权限
+
             if (section.Characteristics & 0x20000000) and \
                (section.Characteristics & 0x40000000) and \
-               (section.Characteristics & 0x80000000):
+               (section.Characteristics & 0x80000000):# 检查是否有 RWE (Read-Write-Execute) 权限
                 rwe_count += 1
         
         features["max_section_entropy"] = max(entropies) if entropies else 0
         features["avg_section_entropy"] = sum(entropies)/len(entropies) if entropies else 0
         features["num_rwe_sections"] = rwe_count
+
 
         # 提取导入表信息
         apis = []
@@ -84,15 +90,15 @@ def get_file_features(file_path):
                 for imp in entry.imports:
                     if imp.name:
                         api_name = imp.name.decode('utf-8', 'ignore')
-                        apis.append(api_name)
-                        # 统计危险API
-                        if any(d_api in api_name for d_api in DANGEROUS_APIS):
+                        apis.append(api_name)        
+                        if any(d_api in api_name for d_api in DANGEROUS_APIS):# 统计危险API
                             dangerous_count += 1
         
         features["num_dlls"] = dll_count
         features["num_imports"] = len(apis)
         features["dangerous_api_count"] = dangerous_count
         features["api_list"] = " ".join(apis)
+
 
         #如果入口地址不在text区的范围内，则标为1，记为可疑
         ep = pe.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -105,9 +111,38 @@ def get_file_features(file_path):
             features["is_ep_in_unexpected_section"] = 0
 
         pe.close()
+
+
+        # 是否有数字签名
+        security_dir = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']]
+        features["has_signature"] = 1 if security_dir.Size > 0 and security_dir.VirtualAddress != 0 else 0
+
+
+        # 是否包含GUI库
+        gui_libs = ['user32.dll', 'gdi32.dll', 'comctl32.dll', 'shell32.dll']
+        has_ui = 0
+        apis = []
+        if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+            for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                dll_name = entry.dll.decode('utf-8', 'ignore').lower()
+                if any(u_lib in dll_name for u_lib in gui_libs):
+                    has_ui = 1
+                for imp in entry.imports:
+                    if imp.name:
+                        apis.append(imp.name.decode('utf-8', 'ignore'))
+        features["has_gui_libs"] = has_ui
+
+
+        # 导出函数数量
+        features["num_exports"] = sum(1 for a in apis if any(d in a for d in DANGEROUS_APIS))
+
+
         return features
-    except Exception:
-        print(f"出错！")
+    
+
+    except Exception as e:
+        print(f"出错: {file_path} -> {e}")
+        return None
 
 
 if __name__ == "__main__":

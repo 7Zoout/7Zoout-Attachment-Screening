@@ -16,11 +16,11 @@ def email_test(email_path,process,model)    :
     print("\n开始对邮件附件进行恶意检测：")
 
     #遍历保存附件的文件夹，提取特征并进行预测
+
+    results = []
+
     for root, dirs, files in os.walk(savepath):
         for file in files:
-
-            results = []
-
             file_path = os.path.join(root, file)
             features = get_file_features(file_path)# 提取特征
             df_test = pd.DataFrame([features])  # 转换为DataFrame

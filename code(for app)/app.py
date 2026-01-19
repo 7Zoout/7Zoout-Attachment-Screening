@@ -133,6 +133,8 @@ if mode: # 主动筛查模式
                 with c2:
                     st.expander("查看关键判定依据").write(res['features'])
 
+                    
+
 else: # 被动监听模式 (占位)
     st.warning("📡 被动监听模式需要连接 IMAP 邮箱服务器，目前正在开发中...")
     st.image(os.path.join(IMAGE_DIR, "朴素贝叶斯混淆矩阵.png"), caption="系统历史检测效能监控")
